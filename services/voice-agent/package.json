@@ -1,0 +1,31 @@
+{
+  "name": "@care/voice-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "LiveKit Agents worker: OpenAI Realtime voice companion for people living with dementia",
+  "scripts": {
+    "dev": "tsx src/main.ts dev",
+    "start": "tsx src/main.ts start",
+    "console": "tsx src/main.ts console",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@care/shared": "workspace:*",
+    "@livekit/agents": "^1.8.0",
+    "@livekit/agents-plugin-openai": "^1.8.0",
+    "@livekit/rtc-node": "^0.13.34",
+    "@supabase/supabase-js": "^2.116.0",
+    "dotenv": "^17.2.0",
+    "livekit-server-sdk": "^2.18.0",
+    "zod": "^4.1.8"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "~5.9.3",
+    "vitest": "^5.0.0"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "imports": {
+    "@supabase/supabase-js": "jsr:@supabase/supabase-js@2",
+    "livekit-server-sdk": "npm:livekit-server-sdk@2",
+    "@livekit/protocol": "npm:@livekit/protocol@1",
+    "zod": "npm:zod@4"
+  },
+  "compilerOptions": {
+    "strict": true,
+    "lib": ["deno.window"]
+  }
+}

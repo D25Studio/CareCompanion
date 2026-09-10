@@ -1,0 +1,22 @@
+{
+  "name": "care-companion",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Dementia companion: patient voice assistant, caregiver app, LiveKit voice agent and Supabase backend",
+  "packageManager": "pnpm@10.15.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "companion": "pnpm --filter @care/companion start",
+    "caregiver": "pnpm --filter @care/caregiver start",
+    "agent:dev": "pnpm --filter @care/voice-agent dev",
+    "agent:start": "pnpm --filter @care/voice-agent start",
+    "typecheck": "pnpm -r --parallel typecheck",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r --parallel lint"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3"
+  }
+}
