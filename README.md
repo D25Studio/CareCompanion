@@ -8,7 +8,7 @@ A two-app system that helps a person living with dementia use their phone to rea
 - **Supabase** (`supabase/`) — Postgres with RLS on every table, Auth, Realtime, three Edge Functions (`livekit-token`, `notify-request`, `generate-daily-summary`) and pg_cron jobs.
 - **Shared** (`packages/shared`) — DB types, zod schemas, constants, prompt templates, request state machine, data-channel message types. Used by both apps and the agent.
 
-See `AGENTS.md` for the code map and conventions, and `docs/handoff/` for step-by-step verification tasks designed to be run one per agent session.
+See `AGENTS.md` for the code map and conventions, and `docs/verification.md` for the manual end-to-end test checklist to run after deploying.
 
 ## How it works
 
@@ -37,7 +37,7 @@ Patient says "I want to talk to my wife"
 
 Accounts and keys you need: a **Supabase** project, a **LiveKit Cloud** project, an **OpenAI** API key, and an **Expo** account. Copy `.env.example` and fill it in; each part of the repo reads a subset (see the comments at the top of that file).
 
-`scripts/setup-tools.ps1` installs the CLIs; `scripts/check.ps1` runs install + typecheck + tests.
+`scripts/setup-tools.ps1` installs the CLIs; `scripts/check.ps1` runs install + typecheck + tests; `scripts/agent-dev.ps1` starts the agent (`-Console` to talk to it from the terminal).
 
 ## Set up in order
 
@@ -122,9 +122,17 @@ services/voice-agent/   LiveKit Agents worker (Node, tsx)
 packages/shared/        Types, schemas, constants, prompts, state machine, tests (vitest)
 supabase/migrations/    Schema, RLS, RPC functions, cron
 supabase/functions/     Deno Edge Functions
-docs/handoff/           One self-contained task file per plan step, for fresh agent sessions
+docs/                   verification.md: manual end-to-end test checklist
 scripts/                PowerShell helpers (tool install, checks, Supabase deploy, agent dev)
 ```
+
+## Known MVP trade-offs
+
+- The agent runs from TypeScript source with `tsx` in production too (so `@care/shared` resolves without a build step). Swap for a bundled build when the shared package gets a `dist/`.
+- `packages/shared/src/database.types.ts` is hand-maintained; regenerate with `supabase gen types` after changing migrations (see `AGENTS.md`).
+- Edge Functions duplicate a few constants in `supabase/functions/_shared/constants.ts` because Deno bundling cannot import from `packages/`.
+- Push notifications go through Expo's push service; Android needs a Firebase project (`google-services.json`, git-ignored).
+- Realtime and cron both depend on the hosted Supabase project; the local `supabase start` stack does not run pg_cron jobs the same way.
 
 ## Privacy notes
 

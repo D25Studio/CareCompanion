@@ -18,6 +18,7 @@ export const FALLBACK_MESSAGES = {
   trouble: 'I am having a little trouble hearing right now. Let us try again in a moment.',
   offline: 'The phone is not connected to the internet right now. Your family knows how to fix this. You are safe.',
   notPaired: 'This phone is almost ready. A family member just needs to finish setting it up.',
+  agentMissing: 'I am having trouble starting up. Give me a moment and I will try again.',
 } as const;
 
 export function stopFallbackSpeech(): void {

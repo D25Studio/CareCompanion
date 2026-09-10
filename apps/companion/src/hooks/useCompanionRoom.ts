@@ -2,7 +2,7 @@ import { AudioSession } from '@livekit/react-native';
 import { ConnectionState, type Participant, Room, RoomEvent } from 'livekit-client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { DATA_TOPIC, decodeAgentMessage, encodeDataMessage } from '@care/shared';
+import { DATA_TOPIC, decodeAgentMessage, encodeDataMessage, isCaregiverIdentity } from '@care/shared';
 
 import { NotPairedError, fetchPatientConnection } from '@/lib/connection';
 import { FALLBACK_MESSAGES, speakFallback, stopFallbackSpeech } from '@/lib/speech-fallback';
@@ -41,6 +41,8 @@ const INITIAL_STATE: CompanionRoomState = {
 };
 
 const MAX_RETRY_DELAY_MS = 30_000;
+/** How long after joining the room we wait for the agent's `agent_ready` before treating it as missing. */
+const AGENT_READY_TIMEOUT_MS = 25_000;
 
 /**
  * Owns the LiveKit room for the patient: connects, publishes the microphone, reacts to
@@ -52,10 +54,19 @@ export function useCompanionRoom(circleId: string): CompanionRoomState & { hangU
   const roomRef = useRef<Room | null>(null);
   const retryAttempt = useRef(0);
   const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const agentReadyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const agentReady = useRef(false);
   const disposed = useRef(false);
 
   const update = useCallback((patch: Partial<CompanionRoomState>) => {
     setState((previous) => ({ ...previous, ...patch }));
+  }, []);
+
+  const clearAgentReadyTimer = useCallback(() => {
+    if (agentReadyTimer.current) {
+      clearTimeout(agentReadyTimer.current);
+      agentReadyTimer.current = null;
+    }
   }, []);
 
   const scheduleRetry = useCallback(
@@ -79,8 +90,10 @@ export function useCompanionRoom(circleId: string): CompanionRoomState & { hangU
       retryTimer.current = null;
     }
 
+    clearAgentReadyTimer();
+    agentReady.current = false;
     await roomRef.current?.disconnect().catch(() => undefined);
-    update({ status: 'connecting', errorMessage: null, call: null });
+    update({ status: 'connecting', errorMessage: null, call: null, pendingContact: null, agentState: 'idle' });
 
     let connection;
     try {
@@ -100,21 +113,43 @@ export function useCompanionRoom(circleId: string): CompanionRoomState & { hangU
     const room = new Room({ adaptiveStream: false, dynacast: false });
     roomRef.current = room;
 
+    // The agent is dispatched when the room is created. If it never says hello, the
+    // patient must not sit in front of a silent screen: speak, then reconnect.
+    const handleAgentMissing = () => {
+      if (disposed.current || roomRef.current !== room || agentReady.current) {
+        return;
+      }
+      update({ status: 'error', errorMessage: 'The helper did not start.', agentState: 'idle' });
+      speakFallback(FALLBACK_MESSAGES.agentMissing);
+      scheduleRetry(connect);
+    };
+
     room
       .on(RoomEvent.Connected, () => {
         retryAttempt.current = 0;
         stopFallbackSpeech();
         update({ status: 'connected' });
+        clearAgentReadyTimer();
+        agentReadyTimer.current = setTimeout(handleAgentMissing, AGENT_READY_TIMEOUT_MS);
       })
       .on(RoomEvent.Reconnecting, () => update({ status: 'reconnecting' }))
       .on(RoomEvent.Reconnected, () => update({ status: 'connected' }))
       .on(RoomEvent.Disconnected, () => {
+        clearAgentReadyTimer();
         if (disposed.current) {
           return;
         }
         update({ status: 'error', call: null, agentState: 'idle' });
         speakFallback(FALLBACK_MESSAGES.trouble);
         scheduleRetry(connect);
+      })
+      .on(RoomEvent.ParticipantDisconnected, (participant: Participant) => {
+        // Family members come and go; the agent leaving mid-conversation is a failure.
+        if (disposed.current || isCaregiverIdentity(participant.identity) || !agentReady.current) {
+          return;
+        }
+        agentReady.current = false;
+        handleAgentMissing();
       })
       .on(RoomEvent.DataReceived, (payload: Uint8Array, _participant?: Participant, _kind?: unknown, topic?: string) => {
         if (topic !== DATA_TOPIC) {
@@ -126,7 +161,10 @@ export function useCompanionRoom(circleId: string): CompanionRoomState & { hangU
         }
         switch (message.type) {
           case 'agent_ready':
-            update({ assistantName: message.assistantName });
+            agentReady.current = true;
+            clearAgentReadyTimer();
+            stopFallbackSpeech();
+            update({ assistantName: message.assistantName, errorMessage: null });
             break;
           case 'caption':
             update({ caption: message.text });
@@ -149,6 +187,9 @@ export function useCompanionRoom(circleId: string): CompanionRoomState & { hangU
             update({ call: null });
             break;
           case 'session_ending':
+            // A deliberate goodbye: the agent leaving afterwards is not a failure.
+            agentReady.current = false;
+            clearAgentReadyTimer();
             update({ status: 'ended' });
             break;
         }
@@ -163,7 +204,7 @@ export function useCompanionRoom(circleId: string): CompanionRoomState & { hangU
       speakFallback(FALLBACK_MESSAGES.trouble);
       scheduleRetry(connect);
     }
-  }, [circleId, scheduleRetry, update]);
+  }, [circleId, clearAgentReadyTimer, scheduleRetry, update]);
 
   useEffect(() => {
     disposed.current = false;
@@ -177,6 +218,9 @@ export function useCompanionRoom(circleId: string): CompanionRoomState & { hangU
       disposed.current = true;
       if (retryTimer.current) {
         clearTimeout(retryTimer.current);
+      }
+      if (agentReadyTimer.current) {
+        clearTimeout(agentReadyTimer.current);
       }
       void roomRef.current?.disconnect();
       void AudioSession.stopAudioSession();

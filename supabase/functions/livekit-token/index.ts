@@ -87,7 +87,11 @@ Deno.serve(async (request) => {
     });
 
     // Explicit dispatch: the agent worker registered with LIVEKIT_AGENT_NAME joins this room.
+    // Short timeouts close an abandoned room quickly so the next connection recreates it
+    // and triggers a fresh agent dispatch (the dispatch only happens on room creation).
     token.roomConfig = new RoomConfiguration({
+      emptyTimeout: 30,
+      departureTimeout: 5,
       agents: [
         new RoomAgentDispatch({
           agentName: requireEnv('LIVEKIT_AGENT_NAME'),

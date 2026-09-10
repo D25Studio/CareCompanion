@@ -115,6 +115,7 @@ export default defineAgent({
     });
 
     wireSessionEvents(session, logger, dataChannel);
+    wireQuietCheckIn(session, callBridge);
     wireRoomEvents(ctx, callBridge);
 
     ctx.addShutdownCallback(async () => {
@@ -189,6 +190,32 @@ function wireSessionEvents(session: voice.AgentSession<SessionServices>, logger:
     void logger.end();
   });
 }
+
+/**
+ * After `userAwayTimeout` seconds of silence the patient is marked "away". Check in once,
+ * gently, and then leave the silence alone: repeated prompting is confusing and can feel
+ * like nagging. The flag resets as soon as the patient speaks again.
+ */
+function wireQuietCheckIn(session: voice.AgentSession<SessionServices>, callBridge: CallBridge): void {
+  let hasCheckedIn = false;
+
+  session.on(voice.AgentSessionEventTypes.UserStateChanged, (event) => {
+    if (event.newState === 'speaking') {
+      hasCheckedIn = false;
+      return;
+    }
+    if (event.newState !== 'away' || hasCheckedIn || callBridge.isInCall) {
+      return;
+    }
+    hasCheckedIn = true;
+    session.generateReply({ instructions: QUIET_CHECK_IN_INSTRUCTIONS });
+  });
+}
+
+const QUIET_CHECK_IN_INSTRUCTIONS =
+  'The person has been quiet for a while. Check in once with one short, warm sentence, ' +
+  'for example asking if they are still there or if they would like to keep chatting. ' +
+  'If they do not answer, do not ask again; simply wait quietly.';
 
 /** Patient-side signals arrive over the data channel. */
 function wireRoomEvents(ctx: JobContext, callBridge: CallBridge): void {
