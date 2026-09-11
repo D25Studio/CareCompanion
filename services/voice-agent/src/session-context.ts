@@ -1,9 +1,11 @@
 import {
   DEFAULT_ASSISTANT_NAME,
   DEFAULT_ASSISTANT_VOICE,
+  DEFAULT_CONDITION_ID,
   DEFAULT_CONTACT_REQUEST_TIMEOUT_SECONDS,
   DEFAULT_SPEAKING_RATE,
   type CareCircleMember,
+  type ConditionId,
   type DementiaCondition,
   type DementiaStage,
   type OrientationFacts,
@@ -25,6 +27,9 @@ export interface CircleContext {
   circleId: string;
   patientId: string;
   patientPreferredName: string;
+  /** Umbrella condition that selects the prompt's `ConditionProfile`. */
+  conditionId: ConditionId;
+  /** Subtype and stage within that condition, as stored on `patient_settings`. */
   condition: DementiaCondition;
   stage: DementiaStage;
   assistantName: string;
@@ -81,6 +86,9 @@ export function fromRows(
     circleId,
     patientId,
     patientPreferredName: settings?.preferred_name?.trim() || 'friend',
+    // patient_settings has no primary-condition column yet, so every circle uses the default
+    // profile. When one is added, read it here; nothing else in the agent needs to change.
+    conditionId: DEFAULT_CONDITION_ID,
     condition: settings?.condition ?? 'unspecified',
     stage: settings?.stage ?? 'unspecified',
     assistantName: settings?.assistant_name?.trim() || DEFAULT_ASSISTANT_NAME,

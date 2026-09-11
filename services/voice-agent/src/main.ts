@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 import {
   DATA_TOPIC,
   GREETING_INSTRUCTIONS,
+  QUIET_CHECK_IN_INSTRUCTIONS,
   buildSystemPrompt,
   circleIdFromRoomName,
   decodeCompanionMessage,
@@ -74,6 +75,7 @@ export default defineAgent({
       room: roomName,
       circleId: context.circleId,
       patient: context.patientPreferredName,
+      conditionId: context.conditionId,
       condition: context.condition,
       stage: context.stage,
       assistant: context.assistantName,
@@ -90,6 +92,7 @@ export default defineAgent({
 
     const instructions = buildSystemPrompt({
       patientPreferredName: context.patientPreferredName,
+      conditionId: context.conditionId,
       condition: context.condition,
       stage: context.stage,
       assistantName: context.assistantName,
@@ -205,9 +208,10 @@ function wireSessionEvents(session: voice.AgentSession<SessionServices>, logger:
 }
 
 /**
- * After `userAwayTimeout` seconds of silence the patient is marked "away". Check in once,
- * gently, and then leave the silence alone: repeated prompting is confusing and can feel
- * like nagging. The flag resets as soon as the patient speaks again.
+ * After `userAwayTimeout` seconds of silence the patient is marked "away". Check in once
+ * and then leave the silence alone: repeated prompting is confusing and can feel like
+ * nagging. The flag resets as soon as the patient speaks again. The wording lives in
+ * `@care/shared` with the rest of the prompt text so it is covered by `PROMPT_VERSION`.
  */
 function wireQuietCheckIn(session: voice.AgentSession<SessionServices>, callBridge: CallBridge): void {
   let hasCheckedIn = false;
@@ -224,11 +228,6 @@ function wireQuietCheckIn(session: voice.AgentSession<SessionServices>, callBrid
     session.generateReply({ instructions: QUIET_CHECK_IN_INSTRUCTIONS });
   });
 }
-
-const QUIET_CHECK_IN_INSTRUCTIONS =
-  'The person has been quiet for a while. Check in once with one short, warm sentence, ' +
-  'for example asking if they are still there or if they would like to keep chatting. ' +
-  'If they do not answer, do not ask again; simply wait quietly.';
 
 /** Patient-side signals arrive over the data channel. */
 function wireRoomEvents(ctx: JobContext, callBridge: CallBridge): void {

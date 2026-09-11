@@ -302,7 +302,8 @@ select * from cron.job_run_details order by start_time desc limit 10;
 
 ## 9. Mental model for changing things later
 
-- **Change what the agent says or how it behaves** → `packages/shared/src/prompts/`. Bump `PROMPT_VERSION` so old sessions stay traceable. Run `pnpm test` (prompt tests live next to the code).
+- **Change what the agent says or how it behaves** → `packages/shared/src/prompts/`. Tone and calming rules that apply to everyone are in `companion-core.ts`; anything about dementia is in `dementia-profile.ts`. Bump `PROMPT_VERSION` so old sessions stay traceable. Run `pnpm test` (prompt tests live next to the code).
+- **Support another medical condition** → add its id to `CONDITION_IDS` in `packages/shared/src/constants.ts`, copy `prompts/dementia-profile.ts` and write the new condition's rules, subtypes and stages, then register it in `prompts/condition-profiles.ts` (TypeScript will not compile until you do). The registry test checks every profile for missing pieces. To let families pick the condition, add a `primary_condition` column to `patient_settings` following the next bullet and read it in `session-context.ts` where `conditionId` is set.
 - **Add a setting the family can control** → add a column in a **new** migration file (`supabase/migrations/2026…_name.sql`), add it to `database.types.ts` and `schemas.ts` in shared, show it in `apps/caregiver/app/(tabs)/settings.tsx`, read it in `services/voice-agent/src/session-context.ts`. Then `npx supabase db push`.
 - **Add a new agent tool** (something the helper can *do*) → `services/voice-agent/src/tools.ts`, following `get_orientation_info` as the simplest example.
 - **Add a message from the agent to the patient's screen** → define it in `packages/shared/src/data-messages.ts`, send it from the agent, handle it in `apps/companion/src/hooks/useCompanionRoom.ts`.

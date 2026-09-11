@@ -6,6 +6,27 @@
 export const PROFILE_ROLES = ['patient', 'caregiver'] as const;
 export type ProfileRole = (typeof PROFILE_ROLES)[number];
 
+/**
+ * Umbrella conditions the companion knows how to talk with. Each id has a matching
+ * `ConditionProfile` in `packages/shared/src/prompts/` that supplies the condition-specific
+ * parts of the system prompt. To support another condition: add its id here, write a profile,
+ * and register it in `condition-profiles.ts`. The universal parts of the prompt (manner,
+ * keeping calm, safety, family contact) apply to every condition and live in `companion-core.ts`.
+ */
+export const CONDITION_IDS = ['dementia'] as const;
+export type ConditionId = (typeof CONDITION_IDS)[number];
+
+/** Used until `patient_settings` carries a primary-condition column of its own. */
+export const DEFAULT_CONDITION_ID: ConditionId = 'dementia';
+
+export const CONDITION_LABELS: Record<ConditionId, string> = {
+  dementia: 'Dementia',
+};
+
+/**
+ * Subtypes of dementia. Stored in `patient_settings.condition` (Postgres enum `dementia_condition`).
+ * Each subtype has behavioural guidance in the dementia `ConditionProfile`.
+ */
 export const DEMENTIA_CONDITIONS = [
   'alzheimers',
   'vascular',

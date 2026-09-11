@@ -205,7 +205,7 @@ const flagDistressTool = llm.tool<
     if (level === 'high') {
       return (
         'The family has been alerted urgently. Stay calm and stay with the person. Keep sentences very short. ' +
-        'Reassure them that help is on the way and that you are staying right here with them. Keep them talking.'
+        'Tell them you have let their family know and that you are staying right here with them. Keep them talking.'
       );
     }
     return 'The family has been quietly told. Continue to reassure, then gently redirect to something calm and pleasant.';
@@ -247,7 +247,7 @@ const endConversationTool = llm.tool<SessionServices, undefined, string>({
     await logger.recordToolCall('end_conversation', 'patient said goodbye');
     await dataChannel.send({ type: 'session_ending', reason: 'patient_request' });
 
-    const goodbye = `Goodbye ${context.patientPreferredName}. I am always here on your phone whenever you need me.`;
+    const goodbye = `Goodbye ${context.patientPreferredName}. I am here on your phone whenever you feel like a chat.`;
     const handle = ctx.session.say(goodbye, { allowInterruptions: false });
     void handle.waitForPlayout().then(() => job.shutdown('patient_request'));
 

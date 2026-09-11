@@ -1,14 +1,20 @@
-import {
-  DEFAULT_ASSISTANT_NAME,
-  type DementiaCondition,
-  type DementiaStage,
-} from '../constants';
+import { DEFAULT_ASSISTANT_NAME, DEFAULT_CONDITION_ID, type ConditionId } from '../constants';
 import type { OrientationFacts } from '../schemas';
-import { CONDITION_GUIDANCE, STAGE_GUIDANCE } from './conditions';
-import { DEMENTIA_COMMUNICATION_RULES } from './dementia-communication';
+import {
+  HOW_YOU_COME_ACROSS,
+  KEEPING_CALM,
+  SAFETY,
+  WHAT_YOU_MUST_NOT_DO,
+  WHEN_THEY_ASK_FOR_SOMEONE,
+} from './companion-core';
+import { type ConditionProfile, resolveGuidance } from './condition-profile';
+import { getConditionProfile } from './condition-profiles';
 
-/** Bump when the prompt structure changes so logged sessions can be compared. */
-export const PROMPT_VERSION = '2026-09-09.1';
+/** Bump when the prompt structure or wording changes so logged sessions can be compared. */
+export const PROMPT_VERSION = '2026-09-11.2';
+
+/** Used when the caregiver has not set a preferred name. Deliberately not a pet name. */
+const FALLBACK_PATIENT_NAME = 'friend';
 
 export interface PromptMember {
   relationshipLabel: string;
@@ -18,8 +24,12 @@ export interface PromptMember {
 
 export interface PromptContext {
   patientPreferredName: string;
-  condition: DementiaCondition;
-  stage: DementiaStage;
+  /** Umbrella condition; selects the `ConditionProfile`. Defaults to `DEFAULT_CONDITION_ID`. */
+  conditionId?: ConditionId;
+  /** Subtype within the condition, as stored in `patient_settings.condition`. Unknown values fall back to "unspecified". */
+  condition: string;
+  /** Stage within the condition, as stored in `patient_settings.stage`. Unknown values fall back to "unspecified". */
+  stage: string;
   assistantName?: string;
   orientationFacts: OrientationFacts;
   customGuidance: string | null;
@@ -28,35 +38,47 @@ export interface PromptContext {
   localTimeDescription: string;
 }
 
+interface PromptNames {
+  assistantName: string;
+  patientName: string;
+}
+
 /**
  * Builds the full system prompt for a voice session.
  *
- * Ordering matters for the model: identity, fixed rules, condition and stage adjustments,
- * then caregiver-supplied facts and guidance, then the people they can reach.
- * Caregiver guidance comes last but is explicitly subordinate to the fixed rules.
+ * Section order is deliberate and the model is sensitive to it:
+ *  1. Identity: who the companion is and what it is for.
+ *  2. How it comes across: universal anti-patronising rules. First, because tone is the thing
+ *     people react to before anything else, and the condition rules below must be read through it.
+ *  3. Condition profile: communication rules, then subtype, then stage adjustments.
+ *  4. Keeping calm: universal de-escalation plus the condition's own additions.
+ *  5. Boundaries, reaching family, safety (universal plus the condition's additions).
+ *  6. Session data: facts, people, caregiver guidance (explicitly subordinate), tools.
  */
 export function buildSystemPrompt(context: PromptContext): string {
-  const assistantName = context.assistantName?.trim() || DEFAULT_ASSISTANT_NAME;
-  const patientName = context.patientPreferredName.trim() || 'friend';
+  const names: PromptNames = {
+    assistantName: context.assistantName?.trim() || DEFAULT_ASSISTANT_NAME,
+    patientName: context.patientPreferredName.trim() || FALLBACK_PATIENT_NAME,
+  };
+  const profile = getConditionProfile(context.conditionId ?? DEFAULT_CONDITION_ID);
 
-  const sections: string[] = [];
-
-  sections.push(
-    `You are ${assistantName}, a gentle voice helper on the phone of ${patientName}, who is living with dementia. ` +
-      `Your purpose is to keep ${patientName} calm and comfortable, help them reach their family through this app, and keep them company. ` +
-      `You are speaking out loud; everything you say will be heard, not read.`,
-  );
-
-  sections.push(DEMENTIA_COMMUNICATION_RULES);
-  sections.push(CONDITION_GUIDANCE[context.condition]);
-  sections.push(STAGE_GUIDANCE[context.stage]);
-
-  sections.push(formatOrientation(patientName, context.localTimeDescription, context.orientationFacts));
-  sections.push(formatMembers(patientName, context.members));
+  const sections: string[] = [
+    formatIdentity(profile),
+    HOW_YOU_COME_ACROSS,
+    profile.communicationRules,
+    resolveGuidance(profile.subtypeGuidance, context.condition),
+    resolveGuidance(profile.stageGuidance, context.stage),
+    appendAddition(KEEPING_CALM, profile.calmingGuidance),
+    WHAT_YOU_MUST_NOT_DO,
+    WHEN_THEY_ASK_FOR_SOMEONE,
+    appendAddition(SAFETY, profile.safetyGuidance),
+    formatOrientation(context.localTimeDescription, context.orientationFacts),
+    formatMembers(context.members),
+  ];
 
   if (context.customGuidance && context.customGuidance.trim().length > 0) {
     sections.push(
-      `GUIDANCE FROM ${patientName.toUpperCase()}'S FAMILY\n` +
+      `GUIDANCE FROM {PATIENT}'S FAMILY\n` +
         `Follow this where it does not conflict with the rules above. If it conflicts, the rules above win.\n` +
         context.customGuidance.trim(),
     );
@@ -64,39 +86,66 @@ export function buildSystemPrompt(context: PromptContext): string {
 
   sections.push(
     `TOOLS\n` +
-      `- request_contact: use when ${patientName} wants to speak to a family member. Pass the relationship word they used (for example "wife", "son", "Sarah").\n` +
+      `- request_contact: use when {patient} wants to speak to a family member. Pass the relationship word they used (for example "wife", "son", "Sarah").\n` +
       `- get_orientation_info: use when they ask the time, day, date, where they are, or who is coming today.\n` +
-      `- flag_distress: use for safety concerns as described above. This quietly alerts family; do not describe the tool to ${patientName}.\n` +
-      `- end_conversation: use only when ${patientName} clearly says goodbye or asks you to stop. Say a short warm goodbye first.`,
+      `- flag_distress: use for safety concerns as described above. This quietly alerts family; do not describe the tool to {patient}.\n` +
+      `- end_conversation: use only when {patient} clearly says goodbye or asks you to stop. Say a short, plain goodbye first.`,
   );
 
-  return sections.join('\n\n');
+  return fillPromptTemplate(sections.filter((section) => section.length > 0).join('\n\n'), names);
 }
 
-function formatOrientation(
-  patientName: string,
-  localTimeDescription: string,
-  facts: OrientationFacts,
-): string {
-  const lines = [`FACTS YOU MAY SHARE WITH ${patientName.toUpperCase()}`, `- Right now it is ${localTimeDescription}.`];
+function formatIdentity(profile: ConditionProfile): string {
+  return (
+    `You are {assistant}, a voice companion on {patient}'s phone. {patient} ${profile.personDescription}. ` +
+    `You are here to keep {patient} company, to help them feel settled when something is bothering them, ` +
+    `and to help them reach their family through this app when they want to. ` +
+    `You are speaking out loud in a live conversation; everything you say is heard, not read.`
+  );
+}
+
+/** Joins a universal section with a profile's optional additions, skipping the join when there are none. */
+function appendAddition(section: string, addition: string): string {
+  const trimmed = addition.trim();
+  return trimmed.length > 0 ? `${section}\n${trimmed}` : section;
+}
+
+/**
+ * Replaces the `{patient}`, `{PATIENT}` and `{assistant}` placeholders used throughout the
+ * prompt text. Applied once to the assembled prompt so profile authors can write plain strings.
+ */
+function fillPromptTemplate(text: string, names: PromptNames): string {
+  return text
+    .replaceAll('{PATIENT}', names.patientName.toUpperCase())
+    .replaceAll('{patient}', names.patientName)
+    .replaceAll('{assistant}', names.assistantName);
+}
+
+function formatOrientation(localTimeDescription: string, facts: OrientationFacts): string {
+  const lines = ['FACTS YOU MAY SHARE WITH {PATIENT}', `- Right now it is ${localTimeDescription}.`];
   for (const [key, value] of Object.entries(facts)) {
     lines.push(`- ${humaniseKey(key)}: ${value}`);
   }
-  lines.push('Share these plainly when asked. Do not volunteer them all at once. If asked something you do not know, say so simply and offer to let family know.');
+  lines.push(
+    'Share these plainly when asked. Do not volunteer them all at once. If asked something you do not know, say so simply and offer to let family know.',
+  );
   return lines.join('\n');
 }
 
-function formatMembers(patientName: string, members: PromptMember[]): string {
+function formatMembers(members: PromptMember[]): string {
   if (members.length === 0) {
-    return `PEOPLE ${patientName.toUpperCase()} CAN REACH\nNo family members are set up yet. If they ask to call someone, say kindly that you will let their family know, and use flag_distress with level "low" and a note about who they asked for.`;
+    return (
+      'PEOPLE {PATIENT} CAN REACH\n' +
+      'No family members are set up yet. If they ask to call someone, say plainly that you will let their family know, and use flag_distress with level "low" and a note about who they asked for.'
+    );
   }
-  const lines = [`PEOPLE ${patientName.toUpperCase()} CAN REACH THROUGH YOU`];
+  const lines = ['PEOPLE {PATIENT} CAN REACH THROUGH YOU'];
   for (const member of members) {
     const availability = member.canReceiveCalls ? 'can be contacted' : 'cannot be called right now, but you can still let them know';
     lines.push(`- ${member.displayName}, their ${member.relationshipLabel} (${availability})`);
   }
   lines.push(
-    `When ${patientName} asks for one of these people by relationship or name, use request_contact. If they ask for someone not on this list, say kindly that you can let their family know, and use flag_distress with level "low" and a note naming who they asked for.`,
+    'When {patient} asks for one of these people by relationship or name, use request_contact. If they ask for someone not on this list, say plainly that you can let their family know, and use flag_distress with level "low" and a note naming who they asked for.',
   );
   return lines.join('\n');
 }
