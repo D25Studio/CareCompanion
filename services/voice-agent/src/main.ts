@@ -48,8 +48,9 @@ export default defineAgent({
     const circleId = metadata.circleId ?? circleIdFromRoomName(roomName);
 
     // Resolve the patient: dispatch metadata first, then the first patient:* participant.
+    // A fake job (console mode) has no room, so there is nobody to wait for.
     let patientId = metadata.patientId ?? null;
-    if (!patientId) {
+    if (!patientId && !ctx.isFakeJob) {
       const participant = await ctx.waitForParticipant();
       patientId = participant.identity.startsWith('patient:') ? participant.identity.slice('patient:'.length) : null;
     }

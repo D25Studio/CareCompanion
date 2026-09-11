@@ -7,7 +7,9 @@
   "scripts": {
     "dev": "tsx src/main.ts dev",
     "start": "tsx src/main.ts start",
-    "console": "tsx src/main.ts console",
+    "console": "lk agent console src/main.ts -- --import tsx",
+    "console:text": "lk agent console --text src/main.ts -- --import tsx",
+    "connect": "tsx src/main.ts connect",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run"

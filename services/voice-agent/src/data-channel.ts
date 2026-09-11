@@ -14,6 +14,10 @@ export class DataChannel {
   ) {}
 
   async send(message: AgentToCompanionMessage): Promise<void> {
+    // Console mode runs without a room, so there is no data channel to publish on.
+    if (!this.room.isConnected) {
+      return;
+    }
     const local = this.room.localParticipant;
     if (!local) {
       return;

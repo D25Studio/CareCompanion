@@ -28,11 +28,30 @@ if (-not (Test-Path $EnvFile))
 }
 
 # Prefer a globally installed CLI, otherwise fall back to npx.
-$supabase = if (Get-Command supabase -ErrorAction SilentlyContinue) { @('supabase') } else { @('npx', 'supabase') }
+if (Get-Command supabase -ErrorAction SilentlyContinue)
+{
+    $supabaseCommand = 'supabase'
+    $supabasePrefix = @()
+}
+else
+{
+    # Target npx.cmd, never the npx.ps1 shim that ships with Node. That shim rebuilds its
+    # own command line from the raw source text of the caller, so a variable holding the
+    # command name leaks through as a literal and npm tries to install a package by that
+    # name ("Invalid tag name" / "404 Not Found" errors).
+    $npx = Get-Command npx.cmd -ErrorAction SilentlyContinue
+    if (-not $npx)
+    {
+        throw 'Neither the Supabase CLI nor npx was found on PATH. Install the Supabase CLI, or install Node.js so npx is available.'
+    }
+
+    $supabaseCommand = $npx.Source
+    $supabasePrefix = @('--yes', 'supabase')
+}
 
 function Invoke-Supabase([string[]] $Arguments)
 {
-    & $supabase[0] @($supabase[1..($supabase.Length - 1)] + $Arguments)
+    & $supabaseCommand @($supabasePrefix + $Arguments)
     if ($LASTEXITCODE -ne 0)
     {
         throw "supabase $($Arguments -join ' ') failed"

@@ -77,6 +77,10 @@ You need one account with each service. All have free tiers sufficient for testi
 ### 3.1 Create the project
 1. In the Supabase dashboard click **New project**. Pick a region near you (Sydney). Save the database password somewhere.
 2. Go to **Project Settings → API**. Copy the **Project URL**, the **anon public** key and the **service_role** key.
+URL: https://supabase.com/dashboard/project/pbwpnuzpmfkdlrkpaxks
+Anon: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBid3BudXpwbWZrZGxya3BheGtzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkwODkwNDQsImV4cCI6MjEwNDY2NTA0NH0.g7c0nYLMWAWQ2ZvSfvVoybrp8l_8Kkxe6jHjxm6PIqs
+service_role: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBid3BudXpwbWZrZGxya3BheGtzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4OTA4OTA0NCwiZXhwIjoyMTA0NjY1MDQ0fQ.zGO9LhK6aYLpDNutxfINOcPh6JJMCvp96dAN92yat84
+
 3. Go to **Authentication → Sign In / Providers**:
    - Enable **Anonymous sign-ins** (the patient's phone logs in without a password).
    - Under **Email**, turn **Confirm email** *off* for now so test accounts work immediately.
@@ -128,11 +132,25 @@ Fill in `.env.local`: LiveKit URL/key/secret, OpenAI key, Supabase URL, service 
 
 ### 4.3 Talk to it from the terminal (no phone needed)
 
+Console mode is driven by the LiveKit CLI, so install it once:
+
+```powershell
+winget install --id LiveKit.LiveKitCLI --exact
+```
+
+Open a new terminal afterwards so `lk` is on the PATH, then:
+
 ```powershell
 pnpm console
 ```
 
-This starts the agent in "console mode" using the laptop's microphone and speaker with default settings (no family, no patient name). Say hello. If it answers, OpenAI and the agent are working. Press `Ctrl+C` to stop.
+This starts the agent in "console mode" using the laptop's microphone and speaker with default settings (no family, no patient name). There is no LiveKit room and no Supabase circle behind it, so the agent introduces itself with the fallback name. Say hello. If it answers, OpenAI and the agent are working. Press `Ctrl+C` to stop.
+
+To type instead of talk, which is handy when you have no microphone:
+
+```powershell
+pnpm console:text
+```
 
 ### 4.4 Run it for real
 

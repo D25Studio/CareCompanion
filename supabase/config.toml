@@ -35,13 +35,19 @@ enable_confirmations = false
 enabled = true
 policy = "per_worker"
 
+# On deploy the CLI only auto-detects a deno.json sitting next to a function's index.ts,
+# so every function points at the shared map explicitly. Paths are relative to this file.
+
 [functions.livekit-token]
 verify_jwt = true
+import_map = "./functions/deno.json"
 
 [functions.notify-request]
 # Called by the voice agent with the service role key; JWT check is done in code.
 verify_jwt = false
+import_map = "./functions/deno.json"
 
 [functions.generate-daily-summary]
 # Called by pg_cron with the service role key; JWT check is done in code.
 verify_jwt = false
+import_map = "./functions/deno.json"
