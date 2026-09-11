@@ -8,7 +8,7 @@ A two-app system that helps a person living with dementia use their phone to rea
 - **Supabase** (`supabase/`) — Postgres with RLS on every table, Auth, Realtime, three Edge Functions (`livekit-token`, `notify-request`, `generate-daily-summary`) and pg_cron jobs.
 - **Shared** (`packages/shared`) — DB types, zod schemas, constants, prompt templates, request state machine, data-channel message types. Used by both apps and the agent.
 
-See `AGENTS.md` for the code map and conventions, and `docs/verification.md` for the manual end-to-end test checklist to run after deploying.
+**New here?** Start with `docs/getting-started.md`: a beginner-level walkthrough from accounts to the first test on a phone. Then `AGENTS.md` for the code map and conventions, and `docs/verification.md` for the manual end-to-end test checklist.
 
 ## How it works
 
@@ -122,7 +122,7 @@ services/voice-agent/   LiveKit Agents worker (Node, tsx)
 packages/shared/        Types, schemas, constants, prompts, state machine, tests (vitest)
 supabase/migrations/    Schema, RLS, RPC functions, cron
 supabase/functions/     Deno Edge Functions
-docs/                   verification.md: manual end-to-end test checklist
+docs/                   getting-started.md (setup walkthrough), verification.md (manual test checklist)
 scripts/                PowerShell helpers (tool install, checks, Supabase deploy, agent dev)
 ```
 

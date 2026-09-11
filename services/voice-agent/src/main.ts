@@ -68,6 +68,18 @@ export default defineAgent({
       context = fromRows(circleId ?? 'console', patientId ?? 'console', null, [], new Map());
     }
 
+    // One line per session so a tester can confirm which settings the agent picked up.
+    console.info('[agent] session context', {
+      room: roomName,
+      circleId: context.circleId,
+      patient: context.patientPreferredName,
+      condition: context.condition,
+      stage: context.stage,
+      assistant: context.assistantName,
+      members: context.members.map((member) => `${member.relationship_label}:${member.displayName}`),
+      storeTranscripts: context.storeTranscripts,
+    });
+
     const logger = new SessionLogger(admin, context, roomName);
     if (circleId && patientId) {
       await logger.start();
